@@ -4,29 +4,32 @@ author: "WRITE YOUR NAME HERE"
 output: html_document
 ---
 
-```{r, echo=FALSE, message=FALSE, cache=TRUE}
+```{r, echo=FALSE, message=FALSE}
 # DO NOT EDIT THIS SECTION
-
 # Load packages
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(lubridate))
-
+```
+```{r, echo=FALSE, message=FALSE, cache=TRUE}
 # Load data sets. Note this assumes this .Rmd files is in the same directory as
 # the .csv files.
 flights <- read.csv("data/flights.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df() %>%
-  mutate(date=as.Date(date))
+ tbl_df() %>%
+ mutate(date=as.Date(date))
 weather <- read.csv("data/weather.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df() %>%
-  mutate(date=as.Date(date))
+ tbl_df() %>%
+ mutate(date=as.Date(date))
 planes <- read.csv("data/planes.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 airports <- read.csv("data/airports.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 states <- read.csv("data/states.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 ```
+
+
 
 
 
@@ -51,8 +54,32 @@ Please indicate
     + the x-axis should be some notion of time
     + the y-axis should be the proportion.
 * Which seasons did we tend to see the most and least delays of > 30 minutes.
-
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+q1 = select(flights, `date`, `arr_delay`, `cancelled`)
+q1
+
+q1_delay = q1 %>% mutate(arr_delay = ifelse(is.na(arr_delay),31, arr_delay))
+#cancled flights are really delayed for more than 30 minues
+q1_delay
+q1_delay = na.omit(q1_delay) #now only removes values that are na for both
+#View(q1_delay)
+
+
+delays = group_by(q1_delay, date) %>% summarize(del = sum(arr_delay > 30))
+total = group_by(q1_delay, date) %>% summarize(del = n())
+
+delays
+total
+
+proportion = full_join(total, delays, by="date")
+proportion = mutate(proportion, prop = del.y / del.x)
+proportion
+
+p1 = ggplot(proportion, aes(x = date, y = prop))
+p1 = p1 + geom_point()
+p1
+
+
 
 ```
 
@@ -67,21 +94,49 @@ they tend to have more room.  Which airlines should these people favor?
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
+
+q2 = inner_join(planes, flights, by = "plane")
+q2 = select(q2, `plane`, `year`, `carrier`)
+q2
+
+p2 = ggplot(q2, aes(x = year))
+p2 = p2 + geom_histogram()
+p2 = p2 + facet_wrap(~carrier)
+p2
+
+
 ```
-
-
-
-
-
-
-
 ## Question 3:
 
 * What states did listed Southwest Airlines flights tend to fly to?
 * What states did all Southwest Airlines flights tend to fly to?
 
-
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+
+
+SW = filter(flights, carrier == "WN")
+SW = inner_join(airports, SW, by = c("iata"="dest"))
+SW = inner_join(states, SW, by = "state")
+
+px = ggplot(SW, aes(x = long, y = lat, color = state)) + geom_point()
+px ## this is just for curiosity's sake, but it looks cool! If only I could figure out how to put a real map under it
+
+q3 = select(SW, `state`, `date`, `iata`)
+q3a  = group_by(q3, state) %>% summarize(Flights = n()) ## all flights
+
+q3a = arrange(q3a, Flights)
+q3a
+
+p3a = ggplot(q3a, aes(x = state, y = Flights)) + geom_bar(stat = "identity")
+p3a
+
+q3b = distinct(q3) %>% group_by(state) %>% summarize(Destination_days = n())
+q3b
+## NEED To fix so it's just by flight
+
+p3b = ggplot(q3b, aes(x = state, y = Destination_days)) + geom_bar(stat = "identity")
+p3b
+
 
 ```
 
@@ -94,6 +149,20 @@ they tend to have more room.  Which airlines should these people favor?
 What weather patterns are associated with the biggest departure delays?
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+
+q4 = inner_join(flights, weather, by = c("date", "hour"))
+
+q4_conditions = select(q4, `dep_delay`, `conditions`) %>% group_by(conditions) %>% summarize(`Average delay` = mean(dep_delay), SE = sd(dep_delay)/sqrt(n()))
+q4_conditions
+
+
+p4_conditions = ggplot(q4, aes(x = conditions, y = `dep_delay`)) + geom_point(position = position_jitter(width = 1), size = 0.25)
+p4_conditions
+## too many points for a jitter plot
+
+p4_conditions_bar = ggplot(q4_conditions, aes(x = conditions, y = `Average delay`)) + geom_bar(stat = "identity")
+p4_conditions_bar
+
 
 ```
 
@@ -108,5 +177,20 @@ carrier flies to from Houston in the month of July.  Consider the `month()`
 function from the `lubridate` package.
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+
+q5 = mutate(flights, month = month(date, label=TRUE))
+q5 = filter(q5, month=="Jul")
+q5 = inner_join(q5, airports, by=c("dest" = "iata"))
+q5 = inner_join(q5, states, by = "state")
+q5 = select(q5, `region`, `carrier`)
+q5a = q5 %>% group_by(carrier) %>% summarize(carrier_total = n()) 
+q5b = q5 %>% group_by(carrier, region) %>% summarize(region_total = n())
+q5 = inner_join(q5a, q5b, by = "carrier") %>% mutate(percent_in_region = (region_total/carrier_total)*100)
+q5
+
+p5 = ggplot(q5, aes(x = carrier, y = percent_in_region, fill = region)) + geom_bar(stat = "identity")
+p5 = p5 + scale_fill_brewer(palette = "Spectral")
+p5
+
 
 ```
