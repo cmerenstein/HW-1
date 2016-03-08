@@ -8,13 +8,19 @@ output: html_document
 # DO NOT EDIT THIS SECTION
 # Load packages
 
-if("ggmap" %in% rownames(installed.packages()) == FALSE) {install.packages("ggmap")}
+options(warn=-1) ## so warnings aren't in markdown
+
+if("ggmap" %in% rownames(installed.packages()) == FALSE) {install.packages("ggmap")} ## I use ggmap, didn't know if you had it
+if("DT" %in% rownames(installed.packages()) == FALSE) {install.packages("DT")}
+
 
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(ggmap))
+suppressPackageStartupMessages(library(DT))
+
 ```
 ```{r, echo=FALSE, message=FALSE, cache=TRUE}
 # Load data sets. Note this assumes this .Rmd files is in the same directory as
@@ -59,8 +65,8 @@ Please indicate
     + the y-axis should be the proportion.
 * Which seasons did we tend to see the most and least delays of > 30 minutes.
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+
 q1 = select(flights, `date`, `arr_delay`, `cancelled`)
-q1
 
 q1_delay = q1 %>% mutate(arr_delay = ifelse(is.na(arr_delay),31, arr_delay))
 #cancled flights are really delayed for more than 30 minues
@@ -76,16 +82,19 @@ total = group_by(q1_delay, date) %>% summarize(del = n())
 #total
 
 proportion = full_join(total, delays, by="date")
-proportion = mutate(proportion, prop = del.y / del.x)
+proportion = mutate(proportion, `Percent Delayed` = round((del.y / del.x)*100, digits = 2))
+proportion = rename(proportion, Delayed = del.y, Total = del.x)
+
 #proportion
 
-p1 = ggplot(proportion, aes(x = date, y = prop))
+datatable(proportion, options = list(searching = FALSE, pageLength = 20, lengthMenu = c(5, 10, 20, 50)))
+
+p1 = ggplot(proportion, aes(x = date, y = `Percent Delayed`))
 p1 = p1 + geom_point()
 p1
 
-
-
 ```
+> Flights are delayed most in the late spring or early summer, and are delayed least in the fall. This is pretty different from the dynamic we're used to in the northeast, but as question 4 shows, Texas doesn't have to deal with the type of winter weather that leads to delays.
 
 
 
@@ -101,15 +110,17 @@ they tend to have more room.  Which airlines should these people favor?
 
 q2 = inner_join(planes, flights, by = "plane")
 q2 = select(q2, `plane`, `year`, `carrier`)
-q2
+#q2
 
 p2 = ggplot(q2, aes(x = year))
 p2 = p2 + geom_histogram()
 p2 = p2 + facet_wrap(~carrier)
 p2
 
-
 ```
+> Most flights on most airlines are with fairly new planes. However, a few that fly out of Houston have older fleets. American Airlines (AA), and Delta (DL) both have fleets primerily from before 2000, with some that are more than 30 years old! However, as the histogram shows, these don't give many options out of Houston. A frequent flier in and out of HOU will probably want to stick with Southwest (WN) if they're looking for older planes, since they run a high volume of flights on old aircraft.
+
+
 ## Question 3:
 
 * What states did listed Southwest Airlines flights tend to fly to?
@@ -125,24 +136,34 @@ SW = inner_join(states, SW, by = "state")
 q3 = select(SW, `state`, `date`, `iata`, `lat`, `long`)
 q3a  = group_by(q3, state) %>% summarize(Flights = n()) ## all flights
 
-q3_map = inner_join(q3a, q3, by = "state")
-
-p_map = qmap("USA", zoom = 4, color = "bw")
-p_map = p_map + geom_point(data = q3_map, aes(x = long, y = lat, fill = state, color = "black", size = Flights), pch=21) + scale_shape_identity()
-p_map
-
 q3a = arrange(q3a, Flights)
-q3a
+#q3a
 
 p3a = ggplot(q3a, aes(x = state, y = Flights)) + geom_bar(stat = "identity")
 p3a
+```
+> This shows all flights that Southwest makes, meaning it's skewed to routes that are repeated daily or more. Still, this demonstrates that most of Southwest's buisness out of Texas is regional, staying in Texas or the rest of the south.    
+> The graph below shows just unique flights, meaning there are some states that only get a single flight. These bar graphs show that Southwest is making most of it's total flights in Texas, which is partially a result of flying to 7 different locations, but also a factor of high frequency regional flights. One thing that also stands out is that the third most flown-to state, LA, is really just one very frequent flight.
 
-q3b = distinct(q3) %>% group_by(state) %>% summarize(Destination_days = n())
-q3b
-## NEED To fix so it's just by flight
+```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
 
-p3b = ggplot(q3b, aes(x = state, y = Destination_days)) + geom_bar(stat = "identity")
+q3b = select(q3, `state`, `iata`)
+q3b = distinct(q3b) %>% group_by(state) %>% summarize(`Distinct flights` = n())
+#q3b
+
+p3b = ggplot(q3b, aes(x = state, y = `Distinct flights`)) + geom_bar(stat = "identity")
 p3b
+```
+> As clear as the bar graphs are, I think this mapping demonstrates both parts of the question more clearly. The points on the map clearly show where Southwest is flying in terms of listed fligths, and the size of the dot indicates the total number of flights to that location.
+
+
+```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=10}
+
+q3_map = inner_join(q3a, q3, by = "state")
+
+USA = qmap("USA", zoom = 4, color = "bw")
+p_map_all = USA + geom_point(data = q3_map, aes(x = long, y = lat, fill = state, size = Flights), pch=21, colour = "black") + scale_shape_identity()
+p_map_all
 
 
 ```
@@ -160,16 +181,20 @@ What weather patterns are associated with the biggest departure delays?
 q4 = inner_join(flights, weather, by = c("date", "hour"))
 
 q4_conditions = select(q4, `dep_delay`, `conditions`) %>% group_by(conditions) %>% summarize(`Average delay` = mean(dep_delay), SE = sd(dep_delay)/sqrt(n()))
-q4_conditions
+#q4_conditions
 
 
-p4_conditions = ggplot(q4, aes(x = conditions, y = `dep_delay`)) + geom_point(position = position_jitter(width = 1), size = 0.25)
-p4_conditions
-## too many points for a jitter plot
-
-p4_conditions_bar = ggplot(q4_conditions, aes(x = conditions, y = `Average delay`)) + geom_bar(stat = "identity")
+p4_conditions_bar = ggplot(q4_conditions, aes(x = conditions, y = `Average delay`)) + geom_bar(stat = "identity") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 p4_conditions_bar
+```
+> From the bar chart above, it's pretty clear that freezing rain, light or otherwise, is no good for getting out on time. In general, rain causes delays, but a light dirzzle can actually speed up the flight! Maybe when the weather is lousy it makes the ground crews hurry up.   
+> Looking more closely at the data though, this time in a jitter plot, it becomes obvious that the drizzel effect is really just a small sample size. It also makes it clear that freezing rain isn't necessarily so bad, it just hasn't happened that often. We really don't know accuratly how freezing rain effects delays, only that the 5 times we saw it planes didn't get out on time.   
+>The jitter plot also shows some nuanced differences between otherwise similar conditions. For exmple, Rain and Scattered Clouds have similar average delays, but many more Scattered Clouds days had long delays 30 minutes or more. Looking at these data, I'd rather fly on a rainy day than a cloudy one; the average delay will be similar but the worse case scenario seems worse with scattered clouds.
 
+
+```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+p4_conditions = ggplot(q4, aes(x = conditions, y = `dep_delay`)) + geom_point(position = position_jitter(width = 1), size = 0.25) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p4_conditions
 
 ```
 
@@ -192,12 +217,14 @@ q5 = inner_join(q5, states, by = "state")
 q5 = select(q5, `region`, `carrier`)
 q5a = q5 %>% group_by(carrier) %>% summarize(carrier_total = n()) 
 q5b = q5 %>% group_by(carrier, region) %>% summarize(region_total = n())
-q5 = inner_join(q5a, q5b, by = "carrier") %>% mutate(percent_in_region = (region_total/carrier_total)*100)
-q5
+q5 = inner_join(q5a, q5b, by = "carrier") %>% mutate(percent_in_region = round((region_total/carrier_total)*100, digits = 2))
+
+datatable(q5, options = list(searching = FALSE, pageLength = 20, lengthMenu = c(5, 10, 20)))
 
 p5 = ggplot(q5, aes(x = carrier, y = percent_in_region, fill = factor(region))) + geom_bar(stat = "identity", color = "black")
 p5 = p5 + scale_fill_brewer(palette = "Pastel2")
 p5
 
-
 ```
+> Most airlines only fly to a small number of destinamtions, sometimes only 1 city, making their regional breakdown somewhat uninteresting. Amoung larger carriers, the overall picture is that planes from Houston mostly are headed to the south. The only major airline to buck this trend is United, which flies heavily to the West.
+
