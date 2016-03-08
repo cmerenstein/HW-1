@@ -1,16 +1,20 @@
 ---
 title: "MATH 216 Homework 1"
-author: "WRITE YOUR NAME HERE"
+author: "Carter Merenstein"
 output: html_document
 ---
 
 ```{r, echo=FALSE, message=FALSE}
 # DO NOT EDIT THIS SECTION
 # Load packages
+
+if("ggmap" %in% rownames(installed.packages()) == FALSE) {install.packages("ggmap")}
+
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(ggmap))
 ```
 ```{r, echo=FALSE, message=FALSE, cache=TRUE}
 # Load data sets. Note this assumes this .Rmd files is in the same directory as
@@ -39,10 +43,10 @@ states <- read.csv("data/states.csv", stringsAsFactors = FALSE) %>%
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW:
-* What gave you the most trouble:
-* Any comments you have:
+* Who you collaborated with: no one
+* Roughly how much time you spent on this HW: 6 hr
+* What gave you the most trouble: r syntax
+* Any comments you have: Learning R is a lot more frustrating than learning other programming languages. I feel like this assignment would have taken 2 hours in any other language but I lost a lot of time figureing out the differences between things like sort(), order(), and arrange(), or n(), count(), tally() and sum(). There also don't seem to be really good documentations for a lot of things. The help() function is not nearly complete as something like man() or the java API. For example, I want a list of all possible options for the stat argument in ggplot, but nothing seeems to just list them.
 
 
 
@@ -60,7 +64,7 @@ q1
 
 q1_delay = q1 %>% mutate(arr_delay = ifelse(is.na(arr_delay),31, arr_delay))
 #cancled flights are really delayed for more than 30 minues
-q1_delay
+#q1_delay
 q1_delay = na.omit(q1_delay) #now only removes values that are na for both
 #View(q1_delay)
 
@@ -68,12 +72,12 @@ q1_delay = na.omit(q1_delay) #now only removes values that are na for both
 delays = group_by(q1_delay, date) %>% summarize(del = sum(arr_delay > 30))
 total = group_by(q1_delay, date) %>% summarize(del = n())
 
-delays
-total
+#delays
+#total
 
 proportion = full_join(total, delays, by="date")
 proportion = mutate(proportion, prop = del.y / del.x)
-proportion
+#proportion
 
 p1 = ggplot(proportion, aes(x = date, y = prop))
 p1 = p1 + geom_point()
@@ -118,11 +122,14 @@ SW = filter(flights, carrier == "WN")
 SW = inner_join(airports, SW, by = c("iata"="dest"))
 SW = inner_join(states, SW, by = "state")
 
-px = ggplot(SW, aes(x = long, y = lat, color = state)) + geom_point()
-px ## this is just for curiosity's sake, but it looks cool! If only I could figure out how to put a real map under it
-
-q3 = select(SW, `state`, `date`, `iata`)
+q3 = select(SW, `state`, `date`, `iata`, `lat`, `long`)
 q3a  = group_by(q3, state) %>% summarize(Flights = n()) ## all flights
+
+q3_map = inner_join(q3a, q3, by = "state")
+
+p_map = qmap("USA", zoom = 4, color = "bw")
+p_map = p_map + geom_point(data = q3_map, aes(x = long, y = lat, fill = state, color = "black", size = Flights), pch=21) + scale_shape_identity()
+p_map
 
 q3a = arrange(q3a, Flights)
 q3a
@@ -188,8 +195,8 @@ q5b = q5 %>% group_by(carrier, region) %>% summarize(region_total = n())
 q5 = inner_join(q5a, q5b, by = "carrier") %>% mutate(percent_in_region = (region_total/carrier_total)*100)
 q5
 
-p5 = ggplot(q5, aes(x = carrier, y = percent_in_region, fill = region)) + geom_bar(stat = "identity")
-p5 = p5 + scale_fill_brewer(palette = "Spectral")
+p5 = ggplot(q5, aes(x = carrier, y = percent_in_region, fill = factor(region))) + geom_bar(stat = "identity", color = "black")
+p5 = p5 + scale_fill_brewer(palette = "Pastel2")
 p5
 
 
