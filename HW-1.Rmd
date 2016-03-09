@@ -50,7 +50,7 @@ states <- read.csv("data/states.csv", stringsAsFactors = FALSE) %>%
 Please indicate
 
 * Who you collaborated with: no one
-* Roughly how much time you spent on this HW: 6 hr
+* Roughly how much time you spent on this HW: 6-8 hr
 * What gave you the most trouble: r syntax
 * Any comments you have: Learning R is a lot more frustrating than learning other programming languages. I feel like this assignment would have taken 2 hours in any other language but I lost a lot of time figureing out the differences between things like sort(), order(), and arrange(), or n(), count(), tally() and sum(). There also don't seem to be really good documentations for a lot of things. The help() function is not nearly complete as something like man() or the java API. For example, I want a list of all possible options for the stat argument in ggplot, but nothing seeems to just list them.
 
